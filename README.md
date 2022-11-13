@@ -9,6 +9,6 @@ make
 
 Running server & client 
 ```
-shell_1 >> ./client
-shell_2 >> ./server
+shell_1 >> ./server
+shell_2 >> ./client
 ```
