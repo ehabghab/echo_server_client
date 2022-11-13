@@ -55,8 +55,8 @@ uint8_t initializeSocket()
 uint8_t listenToSocket(uint8_t socketFileDescriptor)
 {
   std::cout << "[" << __TIME__ << " "
-            << "Server_.cpp:" << __LINE__ << "]"
-            << " Listening @ PORT:" << PORT << "\n";
+            << "Server_.cpp:" << __LINE__ << "] "
+            << "Listening @ PORT:" << PORT << "\n";
   struct sockaddr_in address;
   int addrlen = sizeof(address);
   uint8_t newSocket;
@@ -73,7 +73,7 @@ uint8_t listenToSocket(uint8_t socketFileDescriptor)
     exit(EXIT_FAILURE);
   }
   std::cout << "[" << __TIME__ << " "
-            << "Server_.cpp:" << __LINE__ << "]"
+            << "Server_.cpp:" << __LINE__ << "] "
             << "Connected!\n";
   return newSocket;
 }
@@ -93,11 +93,11 @@ void sender(uint8_t socketId)
       continue;
     }
     std::cout << "[" << __TIME__ << " "
-              << "Server_.cpp:" << __LINE__ << "]"
+              << "Server_.cpp:" << __LINE__ << "] "
               << "Receving " << data << " <-- client\n";
 
     std::cout << "[" << __TIME__ << " "
-              << "Server_.cpp:" << __LINE__ << "]"
+              << "Server_.cpp:" << __LINE__ << "] "
               << "Echoing " << data << " --> client\n";
 
     send(socketId, data, bytesRead, 0);
