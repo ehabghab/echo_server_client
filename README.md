@@ -4,8 +4,8 @@
 
 Building server & client 
 ```
-g++ src/Client_.cpp -o client -lpthread
-g++ src/Server_.cpp -o server -lpthread
+g++ Client_.cpp -o client -lpthread
+g++ Server_.cpp -o server -lpthread
 ```
 
 Running server & client 
