@@ -80,10 +80,10 @@ uint8_t listenToSocket(uint8_t socketFileDescriptor)
 
 void sender(uint8_t socketId)
 {
+  char *data = (char *)malloc(sizeof(char) * RESPONSE_MAX_LENGTH);
   while (true)
   {
     // this buffer will hold the received bytes at socket.
-    char *data = (char *)malloc(sizeof(char) * RESPONSE_MAX_LENGTH);
     ssize_t bytesRead;
     // fill the buffer with zeros
     bzero(data, RESPONSE_MAX_LENGTH);
@@ -97,7 +97,7 @@ void sender(uint8_t socketId)
               << "Receving " << data << " <-- client\n";
 
     std::cout << "[" << __TIME__ << " "
-              << "Server_.cpp:" << __LINE__ << "] "
+              << "Server_.cpp:" << __LINE__ << "]"
               << "Echoing " << data << " --> client\n";
 
     send(socketId, data, bytesRead, 0);
