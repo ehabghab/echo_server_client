@@ -1,10 +1,10 @@
 
-all: client server
+all: client server 
 
-client:
+client: Client_.cpp
 	g++ -std=c++14 Client_.cpp -o client -lpthread
 
-server:
+server: Server_.cpp
 	g++ -std=c++14 Server_.cpp -o server -lpthread
 
 clean:
