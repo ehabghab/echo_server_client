@@ -60,7 +60,8 @@ void receiver(int socketId)
     std::cout << "[" << __TIME__ << " "
               << "Client_.cpp:" << __LINE__ << "] "
               << "Please enter your msg: ";
-    std::cin >> msg;
+    std::getline(std::cin, msg);
+
     auto msgLen = msg.length();
     if (msgLen == 0)
     {
