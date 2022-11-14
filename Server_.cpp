@@ -97,7 +97,7 @@ void sender(uint8_t socketId)
               << "Receving " << data << " <-- client\n";
 
     std::cout << "[" << __TIME__ << " "
-              << "Server_.cpp:" << __LINE__ << "]"
+              << "Server_.cpp:" << __LINE__ << "] "
               << "Echoing " << data << " --> client\n";
 
     send(socketId, data, bytesRead, 0);
