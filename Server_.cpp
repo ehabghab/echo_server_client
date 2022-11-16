@@ -1,17 +1,56 @@
 
+#include <arpa/inet.h>
 #include <netinet/in.h>
-#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+
+#include <string.h>
 #include <unistd.h>
 
+#include <chrono>
 #include <iostream>
 #include <thread>
+#include <set>
 
 #define PORT 7777
 #define RESPONSE_MAX_LENGTH 1000
 
-uint8_t initializeSocket()
+using namespace std::chrono_literals;
+
+void sender(uint8_t socketId, std::string clientAdd, std::set<std::string> &activeClients)
+{
+  char *data = (char *)malloc(sizeof(char) * RESPONSE_MAX_LENGTH);
+  while (true)
+  {
+    // this buffer will hold the received bytes at socket.
+    ssize_t bytesRead;
+    // fill the buffer with zeros
+    bzero(data, RESPONSE_MAX_LENGTH);
+    bytesRead = read(socketId, data, RESPONSE_MAX_LENGTH);
+
+    // if true, then client sent FIN to close connection.
+    if (bytesRead == 0)
+    {
+      std::cout << "[" << __TIME__ << " "
+                << "Server_.cpp:" << __LINE__ << "] "
+                << "client " << clientAdd << " closed!\n";
+      activeClients.erase(clientAdd);
+      return;
+    }
+    std::cout << "[" << __TIME__ << " "
+              << "Server_.cpp:" << __LINE__ << "] "
+              << "Receving " << data << " <-- " << clientAdd << "\n ";
+
+    std::cout
+        << "[" << __TIME__ << " "
+        << "Server_.cpp:" << __LINE__ << "] "
+        << "Echoing " << data << " --> " << clientAdd << "\n ";
+
+    send(socketId, data, bytesRead, 0);
+  }
+}
+
+uint8_t initializeSocket(int port)
 {
   uint8_t socketFileDescriptor;
   struct sockaddr_in address;
@@ -40,7 +79,7 @@ uint8_t initializeSocket()
 
   address.sin_family = AF_INET;
   address.sin_addr.s_addr = INADDR_ANY;
-  address.sin_port = htons(PORT);
+  address.sin_port = htons(port);
 
   if (bind(socketFileDescriptor, (struct sockaddr *)&address, sizeof(address)) <
       0)
@@ -52,63 +91,79 @@ uint8_t initializeSocket()
   return socketFileDescriptor;
 }
 
-uint8_t listenToSocket(uint8_t socketFileDescriptor)
+void listenToSocket(uint8_t socketFileDescriptor, std::set<std::string> &activeClients)
 {
   std::cout << "[" << __TIME__ << " "
             << "Server_.cpp:" << __LINE__ << "] "
             << "Listening @ PORT:" << PORT << "\n";
-  struct sockaddr_in address;
-  int addrlen = sizeof(address);
-  uint8_t newSocket;
+  while (1)
+  {
+    struct sockaddr_in address;
+    int addrlen = sizeof(address);
+    uint8_t newSocket;
 
-  if (listen(socketFileDescriptor, 3) < 0)
-  {
-    perror("listen");
-    exit(EXIT_FAILURE);
+    if (listen(socketFileDescriptor, 3) < 0)
+    {
+      perror("listen");
+      exit(EXIT_FAILURE);
+    }
+    if ((newSocket = accept(socketFileDescriptor, (struct sockaddr *)&address,
+                            (socklen_t *)&addrlen)) < 0)
+    {
+      perror("accept");
+      exit(EXIT_FAILURE);
+    }
+
+    char ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &address.sin_addr, ip, sizeof(ip));
+    auto port = htons(address.sin_port);
+    std::string clientAdd = std::string(ip) + ":" + std::to_string(port);
+    activeClients.insert(clientAdd);
+
+    std::cout << "[" << __TIME__ << " "
+              << "Server_.cpp:" << __LINE__ << "] "
+              << clientAdd
+              << " Connected!\n";
+
+    // spawn separate thread to handle the client.
+    // This enables concurrency.
+    std::thread send(sender, newSocket, clientAdd, std::ref(activeClients));
+    // Do not on this thread to finish.
+    send.detach();
   }
-  if ((newSocket = accept(socketFileDescriptor, (struct sockaddr *)&address,
-                          (socklen_t *)&addrlen)) < 0)
-  {
-    perror("accept");
-    exit(EXIT_FAILURE);
-  }
-  std::cout << "[" << __TIME__ << " "
-            << "Server_.cpp:" << __LINE__ << "] "
-            << "Connected!\n";
-  return newSocket;
 }
 
-void sender(uint8_t socketId)
+void trackActiveClient(std::set<std::string> &activeClients)
 {
-  char *data = (char *)malloc(sizeof(char) * RESPONSE_MAX_LENGTH);
+  // this will print the <ip:port> of all active clients every 3 seconds.
   while (true)
   {
-    // this buffer will hold the received bytes at socket.
-    ssize_t bytesRead;
-    // fill the buffer with zeros
-    bzero(data, RESPONSE_MAX_LENGTH);
-    bytesRead = read(socketId, data, RESPONSE_MAX_LENGTH);
-    if (bytesRead == 0)
+    for (auto clientAdd : activeClients)
     {
-      continue;
+      std::cout << "[" << __TIME__ << " "
+                << "Server_.cpp:" << __LINE__ << "] "
+                << clientAdd << " is active\n";
     }
-    std::cout << "[" << __TIME__ << " "
-              << "Server_.cpp:" << __LINE__ << "] "
-              << "Receving " << data << " <-- client\n";
 
-    std::cout << "[" << __TIME__ << " "
-              << "Server_.cpp:" << __LINE__ << "] "
-              << "Echoing " << data << " --> client\n";
-
-    send(socketId, data, bytesRead, 0);
+    std::this_thread::sleep_for(3000ms);
   }
 }
 
 int main(int argc, char **argv)
 {
-  auto socketFileDescriptor = initializeSocket();
-  auto socketId = listenToSocket(socketFileDescriptor);
-  std::thread sendThread(sender, socketId);
-  sendThread.join();
+  // This set contains the list of active servers.
+  // Bear in mind, this is not being safely shared among threads.
+  std::set<std::string> activeClients;
+
+  // initialize the server listening socket.
+  auto socketFileDescriptor = initializeSocket(PORT);
+
+  // spawn thread to listen for new connections
+  std::thread listenThread(listenToSocket, socketFileDescriptor, std::ref(activeClients));
+
+  // spawn thread to keep track of active clients.
+  std::thread trackerThread(trackActiveClient, std::ref(activeClients));
+  listenThread.join();
+  trackerThread.join();
   return 0;
 }

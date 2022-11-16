@@ -43,7 +43,13 @@ int connectToServer()
               << "connectToServer(): nConnection Failed\n";
     return -1;
   }
-
+  struct sockaddr_in my_addr;
+  bzero(&my_addr, sizeof(my_addr));
+  socklen_t len = sizeof(my_addr);
+  getsockname(sock, (struct sockaddr *)&my_addr, &len);
+  auto port = htons(my_addr.sin_port);
+  std::cout << "[Client_.cpp:" << __LINE__ << "] "
+            << "PORT:" << port << "\n";
   return sock;
 }
 
