@@ -9,6 +9,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <mutex>
 #include <thread>
 #include <set>
 
@@ -17,7 +18,7 @@
 
 using namespace std::chrono_literals;
 
-void sender(uint8_t socketId, std::string clientAdd, std::set<std::string> &activeClients)
+void sender(uint8_t socketId, std::string clientAdd, std::set<std::string> &activeClients, std::mutex &activeClientMutex)
 {
   char *data = (char *)malloc(sizeof(char) * RESPONSE_MAX_LENGTH);
   while (true)
@@ -34,7 +35,9 @@ void sender(uint8_t socketId, std::string clientAdd, std::set<std::string> &acti
       std::cout << "[" << __TIME__ << " "
                 << "Server_.cpp:" << __LINE__ << "] "
                 << "client " << clientAdd << " closed!\n";
+      activeClientMutex.lock();
       activeClients.erase(clientAdd);
+      activeClientMutex.unlock();
       return;
     }
     std::cout << "[" << __TIME__ << " "
@@ -91,7 +94,7 @@ uint8_t initializeSocket(int port)
   return socketFileDescriptor;
 }
 
-void listenToSocket(uint8_t socketFileDescriptor, std::set<std::string> &activeClients)
+void listenToSocket(uint8_t socketFileDescriptor, std::set<std::string> &activeClients, std::mutex &activeClientMutex)
 {
   std::cout << "[" << __TIME__ << " "
             << "Server_.cpp:" << __LINE__ << "] "
@@ -118,7 +121,10 @@ void listenToSocket(uint8_t socketFileDescriptor, std::set<std::string> &activeC
     inet_ntop(AF_INET, &address.sin_addr, ip, sizeof(ip));
     auto port = htons(address.sin_port);
     std::string clientAdd = std::string(ip) + ":" + std::to_string(port);
+
+    activeClientMutex.lock();
     activeClients.insert(clientAdd);
+    activeClientMutex.unlock();
 
     std::cout << "[" << __TIME__ << " "
               << "Server_.cpp:" << __LINE__ << "] "
@@ -127,42 +133,44 @@ void listenToSocket(uint8_t socketFileDescriptor, std::set<std::string> &activeC
 
     // spawn separate thread to handle the client.
     // This enables concurrency.
-    std::thread send(sender, newSocket, clientAdd, std::ref(activeClients));
+    std::thread send(sender, newSocket, clientAdd, std::ref(activeClients), std::ref(activeClientMutex));
     // Do not on this thread to finish.
     send.detach();
   }
 }
 
-void trackActiveClient(std::set<std::string> &activeClients)
+void trackActiveClient(std::set<std::string> &activeClients, std::mutex &activeClientMutex)
 {
   // this will print the <ip:port> of all active clients every 3 seconds.
   while (true)
   {
+    activeClientMutex.lock();
     for (auto clientAdd : activeClients)
     {
       std::cout << "[" << __TIME__ << " "
                 << "Server_.cpp:" << __LINE__ << "] "
                 << clientAdd << " is active\n";
     }
-
+    activeClientMutex.unlock();
     std::this_thread::sleep_for(3000ms);
   }
 }
 
 int main(int argc, char **argv)
 {
-  // This set contains the list of active servers.
-  // Bear in mind, this is not being safely shared among threads.
+
+  // this mutex protects reading and writing access to activeClient list.
+  std::mutex activeClientMutex;
   std::set<std::string> activeClients;
 
   // initialize the server listening socket.
   auto socketFileDescriptor = initializeSocket(PORT);
 
   // spawn thread to listen for new connections
-  std::thread listenThread(listenToSocket, socketFileDescriptor, std::ref(activeClients));
+  std::thread listenThread(listenToSocket, socketFileDescriptor, std::ref(activeClients), std::ref(activeClientMutex));
 
   // spawn thread to keep track of active clients.
-  std::thread trackerThread(trackActiveClient, std::ref(activeClients));
+  std::thread trackerThread(trackActiveClient, std::ref(activeClients), std::ref(activeClientMutex));
   listenThread.join();
   trackerThread.join();
   return 0;
