@@ -11,9 +11,8 @@
 #include <iostream>
 
 #define RESPONSE_MAX_LENGTH 1000
-#define SERVER_IP "127.0.0.1"
-#define PORT 7777
-int connectToServer()
+
+int connectToServer(std::string serverIpUsingDNS, uint16_t serverPort)
 {
   int sock = -1;
   struct sockaddr_in serv_addr;
@@ -26,9 +25,9 @@ int connectToServer()
   }
 
   serv_addr.sin_family = AF_INET;
-  serv_addr.sin_port = htons(PORT);
+  serv_addr.sin_port = htons(serverPort);
   // Convert IPv4 and IPv6 addresses from text to binary form
-  if (inet_pton(AF_INET, SERVER_IP, &serv_addr.sin_addr) <= 0)
+  if (inet_pton(AF_INET, serverIpUsingDNS.c_str(), &serv_addr.sin_addr) <= 0)
   {
     std::cout << "[" << __TIME__ << " "
               << "Client_.cpp:" << __LINE__ << "] "
@@ -43,24 +42,23 @@ int connectToServer()
               << "connectToServer(): nConnection Failed\n";
     return -1;
   }
-  struct sockaddr_in my_addr;
-  bzero(&my_addr, sizeof(my_addr));
-  socklen_t len = sizeof(my_addr);
-  getsockname(sock, (struct sockaddr *)&my_addr, &len);
-  auto port = htons(my_addr.sin_port);
+  struct sockaddr_in myAddr;
+  bzero(&myAddr, sizeof(myAddr));
+  socklen_t addrLen = sizeof(myAddr);
+  getsockname(sock, (struct sockaddr *)&myAddr, &addrLen);
+  uint16_t port = htons(myAddr.sin_port);
   std::cout << "[Client_.cpp:" << __LINE__ << "] "
             << "PORT:" << port << "\n";
   return sock;
 }
 
-void receiver(int socketId)
+void receiver(int socketId, std::string serverIpUsingDNS, uint16_t serverPort)
 {
 
   std::string msg;
 
   // this buffer will hold the received bytes at socket.
-  char *data = (char *)malloc(sizeof(char) * RESPONSE_MAX_LENGTH);
-
+  std::string data(RESPONSE_MAX_LENGTH + 1, 0);
   while (true)
   {
     std::cout << "[" << __TIME__ << " "
@@ -68,7 +66,7 @@ void receiver(int socketId)
               << "Please enter your msg: ";
     std::getline(std::cin, msg);
 
-    auto msgLen = msg.length();
+    size_t msgLen = msg.length();
     if (msgLen == 0)
     {
       std::cout << "[" << __TIME__ << " "
@@ -79,26 +77,32 @@ void receiver(int socketId)
     }
     std::cout << "[" << __TIME__ << " "
               << "Client_.cpp:" << __LINE__ << "] " << msg << " --> server @"
-              << SERVER_IP << ":" << PORT << "\n";
+              << serverIpUsingDNS << ":" << serverPort << "\n";
     send(socketId, msg.c_str(), msgLen, 0);
 
-    // fill the buffer with zeros
-    bzero(data, RESPONSE_MAX_LENGTH);
-    auto bytesRead = read(socketId, data, RESPONSE_MAX_LENGTH);
+    bzero(&data[0], RESPONSE_MAX_LENGTH);
+    ssize_t bytesRead = read(socketId, &data[0], RESPONSE_MAX_LENGTH);
     std::cout << "[" << __TIME__ << " "
               << "Client_.cpp:" << __LINE__ << "] " << msg << " <-- server @"
-              << SERVER_IP << ":" << PORT << "\n";
+              << serverIpUsingDNS << ":" << serverPort << "\n";
   }
 }
 
 int main(int argc, char **argv)
 {
-  auto socketId = connectToServer();
+
+  if (argc < 3)
+  {
+    std::cout << "Usage Error: please enter server IP along with port number\n";
+    return -1;
+  }
+
+  int socketId = connectToServer(argv[1], std::atoi(argv[2]));
   if (socketId == -1)
   {
     exit(0);
   }
-  std::thread recvThread(receiver, socketId);
+  std::thread recvThread(receiver, socketId, argv[1], std::atoi(argv[2]));
   recvThread.join();
   return 0;
 }
