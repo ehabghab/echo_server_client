@@ -1,3 +1,4 @@
+#include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,8 +27,10 @@ int connectToServer(std::string serverIpUsingDNS, uint16_t serverPort)
 
   serv_addr.sin_family = AF_INET;
   serv_addr.sin_port = htons(serverPort);
+  hostent *serverInfo = gethostbyname(serverIpUsingDNS.c_str());
+  std::string serverIp(inet_ntoa(**(in_addr **)serverInfo->h_addr_list));
   // Convert IPv4 and IPv6 addresses from text to binary form
-  if (inet_pton(AF_INET, serverIpUsingDNS.c_str(), &serv_addr.sin_addr) <= 0)
+  if (inet_pton(AF_INET, serverIp.c_str(), &serv_addr.sin_addr) <= 0)
   {
     std::cout << "[" << __TIME__ << " "
               << "Client_.cpp:" << __LINE__ << "] "
